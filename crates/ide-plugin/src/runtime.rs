@@ -105,6 +105,8 @@ pub trait HostApi: Send + Sync {
         args: Vec<String>,
         cwd: Option<&Path>,
     ) -> Result<(), HostError>;
+    /// Opens `path` (already resolved inside the project) in `client`'s window at `line`/`column`.
+    fn open_location(&self, client: Option<&str>, path: &Path, line: u32, column: u32) -> Result<(), HostError>;
     /// A setting of the plugin as JSON (project over global over the schema default).
     fn setting(&self, root: Option<&Path>, key: &str) -> Option<String>;
 }

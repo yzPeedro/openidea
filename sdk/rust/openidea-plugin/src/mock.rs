@@ -74,6 +74,7 @@ struct State {
     refreshed: Vec<String>,
     view_messages: Vec<(String, String)>,
     terminals: Vec<MockTerminal>,
+    locations: Vec<(String, u32, u32)>,
     settings: BTreeMap<String, String>,
 }
 
@@ -221,6 +222,11 @@ impl MockHost {
     }
 
     /// Terminals the plugin opened.
+    /// Locations the plugin opened (`host::open_location`): path, line, column.
+    pub fn opened_locations(&self) -> Vec<(String, u32, u32)> {
+        self.state.borrow().locations.clone()
+    }
+
     pub fn terminals(&self) -> Vec<MockTerminal> {
         self.state.borrow().terminals.clone()
     }
@@ -591,6 +597,14 @@ pub mod current {
         with(|s| {
             require(s, &format!("process:{program}"))?;
             s.terminals.push(MockTerminal { title: title.into(), program: program.into(), args: args.to_vec() });
+            Ok(())
+        })
+    }
+
+    pub fn open_location(path: &str, line: u32, column: u32) -> Result<(), Error> {
+        with(|s| {
+            require(s, "project.read")?;
+            s.locations.push((path.into(), line, column));
             Ok(())
         })
     }

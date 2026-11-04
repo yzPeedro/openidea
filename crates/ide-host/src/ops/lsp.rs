@@ -46,7 +46,8 @@ pub async fn lsp_completion(
     let Some((plugins, d)) = plugin_providers(host, window, doc, ProviderKind::Completion) else { return result };
     let items = plugin_call(move || plugins.provide_completion(&d, pos, trigger.as_deref())).await.unwrap_or_default();
     if items.is_empty() {
-        return result;
+        // Plugins complete in this document too: no server must not stop the editor from asking them again.
+        return Ok(result.unwrap_or(CompletionList { is_incomplete: true, items: Vec::new() }));
     }
     let mut list = result.unwrap_or(CompletionList { is_incomplete: false, items: Vec::new() });
     list.items.extend(items.into_iter().map(|(_, item)| plugin_completion(item)));
@@ -203,11 +204,24 @@ pub async fn lsp_goto(host: &Host, window: &str, doc: DocId, pos: Pos, kind: Got
     let Some((plugins, d)) = plugin_providers(host, window, doc, ProviderKind::Definition) else { return result };
     let found = plugin_call(move || plugins.provide_definition(&d, pos)).await.unwrap_or_default();
     if found.is_empty() {
-        return result;
+        return result.map(without_generated_helpers);
     }
-    let mut out = result.unwrap_or_default();
-    out.extend(found.into_iter().map(|l| Location { path: l.path.into(), range: l.range, uri: None }));
-    Ok(out)
+    // A plugin answers for the strings it understands (a route name, a table): the
+    // server's guesses for the same text (a function named like the string) only add noise.
+    Ok(found.into_iter().map(|l| Location { path: l.path.into(), range: l.range, uri: None }).collect())
+}
+
+/// Stubs generated for IDEs (`_ide_helper*.php`, `.phpstorm.meta.php`, `vendor/_laravel_ide*`) when the real declaration is there too.
+fn without_generated_helpers(locations: Vec<Location>) -> Vec<Location> {
+    let generated = |l: &Location| {
+        let path = l.path.to_string_lossy().replace('\\', "/");
+        let file = path.rsplit('/').next().unwrap_or(&path);
+        file.starts_with("_ide_helper") || file == ".phpstorm.meta.php" || path.contains("/vendor/_laravel_ide")
+    };
+    if locations.iter().all(generated) {
+        return locations;
+    }
+    locations.into_iter().filter(|l| !generated(l)).collect()
 }
 
 /// Gutter markers from plugins (`line-markers` providers) for `doc`.

@@ -180,6 +180,9 @@ pub enum PluginEvent {
         args: Vec<String>,
         cwd: ide_core::IpcPath,
     },
+    /// Open `path` (inside the project) in an editor at `line`/`column` (0-based).
+    #[serde(rename_all = "camelCase")]
+    OpenLocation { plugin_id: String, path: ide_core::IpcPath, line: u32, column: u32 },
     /// Plugin languages, or the servers they may start, changed: re-fetch
     /// `languages` (the host re-detects open documents: [`crate::Host::plugin_languages_changed`]).
     LanguagesChanged,
